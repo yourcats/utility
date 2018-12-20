@@ -1,0 +1,64 @@
+private static ShardedJedisPool sharedJedisPool;
+	
+	public synchronized static void init(Set<RedisDiamond> rediset)
+	{
+		//关闭之前的连接池
+		if(sharedJedisPool!= null)
+		{
+			sharedJedisPool.destroy();
+		}
+		
+		if(rediset.isEmpty())
+		{
+			System.err.println("严重错误,serious diamond setting error,取得UM not exist配置值不存在.");
+		}
+		else
+		{
+			List<JedisShardInfo> shards = new ArrayList<JedisShardInfo>();
+			
+			//使用多节点sharding初始化数据
+			for(RedisDiamond redisDiamond : rediset)
+			{
+				JedisShardInfo jedisShardInfo =  new JedisShardInfo(redisDiamond.getIp(), redisDiamond.getPort(), redisDiamond.getTimeout(),redisDiamond.getWeight());
+				if(!isBlank(redisDiamond.getPassword())){
+					jedisShardInfo.setPassword(redisDiamond.getPassword());
+				}
+				shards.add(jedisShardInfo);
+			}
+			
+			sharedJedisPool = new ShardedJedisPool(RedisConfigurationAnalyzeUtil.getJedisPoolConfig(), shards);
+		}
+	}
+	public static boolean isBlank(String str) {
+		int strLen;
+		if (str == null || (strLen = str.length()) == 0)
+			return true;
+		for (int i = 0; i < strLen; i++)
+			if (!Character.isWhitespace(str.charAt(i)))
+				return false;
+
+		return true;
+	}
+	/**
+	 * 获取jedis连接池
+	 * @return
+	 */
+	public synchronized static ShardedJedisPool getJedisPool(){
+		return sharedJedisPool;
+	}
+
+	/**
+	 * jedis 连接回收
+	 * @param jedis
+	 * @param isFalg
+	 */
+	public static void returnResource(ShardedJedis jedis, boolean isFalg) {
+		if (null == jedis) {
+			return;
+		}
+		if (isFalg) {
+			sharedJedisPool.returnBrokenResource(jedis);
+		} else {
+			sharedJedisPool.returnResource(jedis);
+		}
+	}
